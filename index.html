@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Roosevelt Boulevard Subway — Public Health Analysis</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --ink: #0e0e0e;
+      --paper: #f4f0e8;
+      --accent: #c0392b;
+      --accent2: #2c5f8a;
+      --muted: #7a7060;
+      --rule: #d4cfc4;
+      --card-bg: #faf8f3;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 300;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Grain overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.035'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── HEADER ── */
+    header {
+      position: relative;
+      padding: 4rem 5vw 3rem;
+      border-bottom: 1px solid var(--rule);
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: end;
+      gap: 2rem;
+    }
+
+    .header-tag {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.65rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .header-tag::before {
+      content: '';
+      display: inline-block;
+      width: 1.8rem;
+      height: 1px;
+      background: var(--accent);
+    }
+
+    h1 {
+      font-family: 'DM Serif Display', serif;
+      font-size: clamp(2rem, 5vw, 3.6rem);
+      line-height: 1.1;
+      font-weight: 400;
+      max-width: 680px;
+    }
+
+    h1 em {
+      font-style: italic;
+      color: var(--accent2);
+    }
+
+    .header-meta {
+      text-align: right;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--muted);
+      line-height: 1.9;
+    }
+
+    /* ── CORRIDOR STRIP ── */
+    .corridor-strip {
+      background: var(--ink);
+      color: var(--paper);
+      padding: 1.2rem 5vw;
+      display: flex;
+      gap: 3rem;
+      align-items: center;
+      overflow-x: auto;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.72rem;
+    }
+
+    .corridor-strip .label {
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .stat-group {
+      display: flex;
+      gap: 2.5rem;
+      flex-shrink: 0;
+    }
+
+    .stat-item { white-space: nowrap; }
+    .stat-item span { color: #aaa; font-size: 0.65rem; display: block; margin-bottom: 0.15rem; }
+    .stat-item strong { font-size: 1rem; color: #fff; }
+
+    /* ── SECTION TITLE ── */
+    .section-header {
+      padding: 3rem 5vw 1.5rem;
+      display: flex;
+      align-items: baseline;
+      gap: 1.5rem;
+    }
+
+    .section-header h2 {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.4rem;
+      font-weight: 400;
+    }
+
+    .section-header p {
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+
+    /* ── GRID ── */
+    .grid {
+      padding: 0 5vw 5rem;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 1.5rem;
+    }
+
+    /* ── CARD ── */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--rule);
+      display: block;
+      text-decoration: none;
+      color: inherit;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.1);
+    }
+
+    .card-accent-bar {
+      height: 3px;
+      width: 100%;
+    }
+
+    .card--svi       .card-accent-bar { background: #2c5f8a; }
+    .card--crash     .card-accent-bar { background: #c0392b; }
+    .card--noveh     .card-accent-bar { background: #27ae60; }
+    .card--scatter   .card-accent-bar { background: #8e44ad; }
+    .card--bubble    .card-accent-bar { background: #d35400; }
+    .card--composite .card-accent-bar { background: #16a085; }
+
+    .card-body {
+      padding: 1.6rem 1.8rem 1.4rem;
+    }
+
+    .card-number {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.62rem;
+      letter-spacing: 0.15em;
+      color: var(--muted);
+      margin-bottom: 0.8rem;
+    }
+
+    .card-title {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.25rem;
+      font-weight: 400;
+      margin-bottom: 0.5rem;
+      line-height: 1.25;
+    }
+
+    .card-desc {
+      font-size: 0.82rem;
+      color: var(--muted);
+      line-height: 1.6;
+      margin-bottom: 1.4rem;
+    }
+
+    .card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.9rem 1.8rem;
+      border-top: 1px solid var(--rule);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.68rem;
+      color: var(--muted);
+    }
+
+    .card-cta {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: var(--ink);
+      transition: gap 0.2s ease;
+    }
+
+    .card:hover .card-cta { gap: 0.7rem; }
+
+    .arrow {
+      display: inline-block;
+      transition: transform 0.2s ease;
+    }
+
+    .card:hover .arrow { transform: translateX(3px); }
+
+    /* ── STATIONS TABLE ── */
+    .table-section {
+      padding: 0 5vw 5rem;
+    }
+
+    .table-section h2 {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.4rem;
+      font-weight: 400;
+      margin-bottom: 1.5rem;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+      font-family: 'DM Mono', monospace;
+    }
+
+    thead tr {
+      border-bottom: 2px solid var(--ink);
+    }
+
+    th {
+      text-align: left;
+      padding: 0.6rem 1rem 0.6rem 0;
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    td {
+      padding: 0.7rem 1rem 0.7rem 0;
+      border-bottom: 1px solid var(--rule);
+      color: var(--ink);
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    .score-bar-cell { width: 140px; }
+
+    .score-bar-wrap {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .score-bar {
+      height: 6px;
+      background: var(--ink);
+      border-radius: 2px;
+      flex-shrink: 0;
+      opacity: 0;
+      transform: scaleX(0);
+      transform-origin: left;
+      animation: barGrow 0.6s ease forwards;
+    }
+
+    @keyframes barGrow {
+      to { opacity: 1; transform: scaleX(1); }
+    }
+
+    .score-val { font-size: 0.75rem; color: var(--muted); }
+
+    .rank-high { color: var(--accent); font-weight: 500; }
+
+    /* ── FOOTER ── */
+    footer {
+      border-top: 1px solid var(--rule);
+      padding: 2rem 5vw;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.65rem;
+      color: var(--muted);
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    /* ── ANIMATE IN ── */
+    .fade-up {
+      opacity: 0;
+      transform: translateY(18px);
+      animation: fadeUp 0.55s ease forwards;
+    }
+
+    @keyframes fadeUp {
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .card:nth-child(1) { animation-delay: 0.05s; }
+    .card:nth-child(2) { animation-delay: 0.12s; }
+    .card:nth-child(3) { animation-delay: 0.19s; }
+    .card:nth-child(4) { animation-delay: 0.26s; }
+    .card:nth-child(5) { animation-delay: 0.33s; }
+    .card:nth-child(6) { animation-delay: 0.40s; }
+
+    @media (max-width: 600px) {
+      header { grid-template-columns: 1fr; }
+      .header-meta { text-align: left; }
+      .stat-group { gap: 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="header-tag">UPenn CPLN/MUSA · Practicum 2025–26</div>
+    <h1>Roosevelt Boulevard Subway<br><em>Public Health Analysis</em></h1>
+  </div>
+  <div class="header-meta">
+    Cathy · Sam Sen<br>
+    Qianmu Zheng · Xiao Yu<br>
+    ──────────<br>
+    12 station areas<br>
+    Philadelphia, PA
+  </div>
+</header>
+
+<div class="corridor-strip">
+  <div class="label">Corridor Avg</div>
+  <div class="stat-group">
+    <div class="stat-item"><span>Mean SVI</span><strong>0.827</strong></div>
+    <div class="stat-item"><span>Mean Crashes</span><strong>6.2</strong></div>
+    <div class="stat-item"><span>Stations</span><strong>12</strong></div>
+    <div class="stat-item"><span>Score Formula</span><strong>SVI×50 + (crashes/18)×50</strong></div>
+    <div class="stat-item"><span>Top Station</span><strong>Bustleton 95.8</strong></div>
+  </div>
+</div>
+
+<div class="section-header">
+  <h2>Interactive Maps & Charts</h2>
+  <p>Six visualizations covering vulnerability, safety, and equity</p>
+</div>
+
+<div class="grid">
+
+  <a class="card card--svi fade-up" href="html/1_svi_map.html" target="_blank">
+    <div class="card-accent-bar"></div>
+    <div class="card-body">
+      <div class="card-number">01 / MAP</div>
+      <div class="card-title">Social Vulnerability Index</div>
+      <div class="card-desc">Choropleth map of CDC SVI scores by census tract along the Roosevelt Boulevard corridor. Higher values indicate greater social vulnerability.</div>
+    </div>
+    <div class="card-footer">
+      <span>Mapbox · Choropleth</span>
+      <span class="card-cta">Open map <span class="arrow">→</span></span>
+    </div>
+  </a>
+
+  <a class="card card--crash fade-up" href="html/2_crash_map.html" target="_blank">
+    <div class="card-accent-bar"></div>
+    <div class="card-body">
+      <div class="card-number">02 / MAP</div>
+      <div class="card-title">Crash Hotspot Analysis</div>
+      <div class="card-desc">Pedestrian and cyclist crash locations within station walksheds. Identifies high-risk intersections where subway access could reduce road exposure.</div>
+    </div>
+    <div class="card-footer">
+      <span>Mapbox · Point density</span>
+      <span class="card-cta">Open map <span class="arrow">→</span></span>
+    </div>
+  </a>
+
+  <a class="card card--noveh fade-up" href="html/3_noveh_map.html" target="_blank">
+    <div class="card-accent-bar"></div>
+    <div class="card-body">
+      <div class="card-number">03 / MAP</div>
+      <div class="card-title">Car-Free Households</div>
+      <div class="card-desc">Share of zero-vehicle households by census tract. High car-free rates signal communities most dependent on transit for daily mobility and healthcare access.</div>
+    </div>
+    <div class="card-footer">
+      <span>Mapbox · Choropleth</span>
+      <span class="card-cta">Open map <span class="arrow">→</span></span>
+    </div>
+  </a>
+
+  <a class="card card--scatter fade-up" href="html/4_scatter.html" target="_blank">
+    <div class="card-accent-bar"></div>
+    <div class="card-body">
+      <div class="card-number">04 / CHART</div>
+      <div class="card-title">SVI vs. Crash Scatter</div>
+      <div class="card-desc">Scatter plot correlating social vulnerability with crash frequency across the 12 station areas. Reveals which stations face compounded health and safety burdens.</div>
+    </div>
+    <div class="card-footer">
+      <span>Plotly · Scatter</span>
+      <span class="card-cta">Open chart <span class="arrow">→</span></span>
+    </div>
+  </a>
+
+  <a class="card card--bubble fade-up" href="html/5_bubble.html" target="_blank">
+    <div class="card-accent-bar"></div>
+    <div class="card-body">
+      <div class="card-number">05 / CHART</div>
+      <div class="card-title">Three-Indicator Bubble Chart</div>
+      <div class="card-desc">Bubble chart encoding SVI, crashes, and car-free household rate simultaneously across all stations — a holistic equity snapshot in one view.</div>
+    </div>
+    <div class="card-footer">
+      <span>Plotly · Bubble</span>
+      <span class="card-cta">Open chart <span class="arrow">→</span></span>
+    </div>
+  </a>
+
+  <a class="card card--composite fade-up" href="html/6_composite_map.html" target="_blank">
+    <div class="card-accent-bar"></div>
+    <div class="card-body">
+      <div class="card-number">06 / MAP</div>
+      <div class="card-title">Composite Priority Score</div>
+      <div class="card-desc">Combined equity-priority score map (SVI × 50 + crashes/18 × 50) identifying stations where subway investment would yield the greatest public health benefit.</div>
+    </div>
+    <div class="card-footer">
+      <span>Mapbox · Choropleth</span>
+      <span class="card-cta">Open map <span class="arrow">→</span></span>
+    </div>
+  </a>
+
+</div>
+
+<!-- Station Rankings Table -->
+<div class="table-section">
+  <h2>Station Priority Rankings</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Station</th>
+        <th>SVI</th>
+        <th>Crashes</th>
+        <th>Car-Free HH%</th>
+        <th class="score-bar-cell">Composite Score</th>
+      </tr>
+    </thead>
+    <tbody id="station-table"></tbody>
+  </table>
+</div>
+
+<footer>
+  <span>Roosevelt Boulevard Subway · Public Health Component · UPenn Practicum 2025–26</span>
+  <span>github.com/uxiaoo22/roosevelt-subway</span>
+</footer>
+
+<script>
+  const stations = [
+    { name: "Bustleton",    svi: 0.916, crashes: 18, carfree: "18.0%", score: 95.8 },
+    { name: "Rising Sun",   svi: 0.924, crashes: 9,  carfree: "17.9%", score: 71.2 },
+    { name: "Cottman",      svi: 0.746, crashes: 12, carfree: "15.4%", score: 70.6 },
+    { name: "Broad-Erie",   svi: 0.975, crashes: 7,  carfree: "43.9%", score: 68.2 },
+    { name: "North 9th",    svi: 0.953, crashes: 7,  carfree: "37.3%", score: 67.0 },
+    { name: "Welsh-Grant",  svi: 0.836, crashes: 8,  carfree: "9.8%",  score: 64.0 },
+    { name: "Adams",        svi: 0.909, crashes: 5,  carfree: "19.9%", score: 59.3 },
+    { name: "Pratt",        svi: 0.898, crashes: 4,  carfree: "17.2%", score: 56.0 },
+    { name: "Rhawn",        svi: 0.726, crashes: 4,  carfree: "12.3%", score: 47.4 },
+    { name: "Red Lion",     svi: 0.870, crashes: 0,  carfree: "10.4%", score: 43.5 },
+    { name: "Southampton",  svi: 0.751, crashes: 1,  carfree: "6.8%",  score: 40.4 },
+    { name: "Old Lincoln",  svi: 0.416, crashes: 0,  carfree: "1.6%",  score: 20.8 },
+  ];
+
+  const tbody = document.getElementById('station-table');
+  const maxScore = 95.8;
+
+  stations.forEach((s, i) => {
+    const barWidth = Math.round((s.score / maxScore) * 100);
+    const isTop = i < 3;
+    tbody.innerHTML += `
+      <tr>
+        <td style="color:var(--muted)">${String(i+1).padStart(2,'0')}</td>
+        <td class="${isTop ? 'rank-high' : ''}">${s.name}</td>
+        <td>${s.svi.toFixed(3)}</td>
+        <td>${s.crashes}</td>
+        <td>${s.carfree}</td>
+        <td class="score-bar-cell">
+          <div class="score-bar-wrap">
+            <div class="score-bar" style="width:${barWidth}px; animation-delay:${0.05 * i + 0.3}s"></div>
+            <span class="score-val">${s.score}</span>
+          </div>
+        </td>
+      </tr>
+    `;
+  });
+</script>
+</body>
+</html>
