@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Roosevelt Boulevard Subway — Public Health Analysis</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Inconsolata:wght@300;400;500&family=Lato:wght@300;400&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg-dark:    #0b0f14;
+      --bg-mid:     #111820;
+      --bg-card:    #161e28;
+      --accent-red: #e05a3a;
+      --accent-blu: #4a9ebb;
+      --accent-grn: #5aad8f;
+      --accent-pur: #9b7ec8;
+      --accent-ora: #d4874a;
+      --accent-tea: #3dbdaa;
+      --text:       #e8e2d8;
+      --muted:      #7a8898;
+      --rule:       #1f2d3d;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { height: 100%; }
+
+    body {
+      height: 100vh;
+      overflow: hidden;
+      background: var(--bg-dark);
+      color: var(--text);
+      font-family: 'Lato', sans-serif;
+      font-weight: 300;
+    }
+
+    /* ─── SLIDER ─── */
+    #slider {
+      height: 100vh;
+      overflow-y: scroll;
+      scroll-snap-type: y mandatory;
+      scroll-behavior: smooth;
+    }
+    #slider::-webkit-scrollbar { display: none; }
+    #slider { -ms-overflow-style: none; scrollbar-width: none; }
+
+    .slide {
+      height: 100vh;
+      width: 100%;
+      scroll-snap-align: start;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+    }
+
+    /* grain */
+    .slide::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    /* ─── NAV DOTS ─── */
+    #nav-dots {
+      position: fixed;
+      right: 1.8rem;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 999;
+    }
+
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--muted);
+      cursor: pointer;
+      border: none;
+      padding: 0;
+      transition: background 0.3s, transform 0.3s;
+    }
+
+    .dot.active { background: var(--text); transform: scale(1.5); }
+
+    /* ─── COUNTER ─── */
+    #counter {
+      position: fixed;
+      bottom: 1.8rem;
+      right: 2.5rem;
+      font-family: 'Inconsolata', monospace;
+      font-size: 0.68rem;
+      color: var(--muted);
+      z-index: 999;
+      letter-spacing: 0.1em;
+    }
+
+    /* ─── SCROLL HINT ─── */
+    #hint {
+      position: fixed;
+      bottom: 1.8rem;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      font-family: 'Inconsolata', monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--muted);
+      z-index: 999;
+      transition: opacity 0.5s;
+    }
+    #hint.gone { opacity: 0; pointer-events: none; }
+    .hint-line { width: 1px; height: 24px; background: linear-gradient(to bottom, transparent, var(--muted)); animation: pulse 1.8s ease-in-out infinite; }
+    @keyframes pulse { 0%,100%{opacity:.3} 50%{opacity:1} }
+
+    /* ─── SLIDE-IN ANIMATION ─── */
+    .sc { opacity: 0; transform: translateY(24px); transition: opacity 0.6s ease, transform 0.6s ease; }
+    .slide.visible .sc { opacity: 1; transform: translateY(0); }
+
+    /* ══════════════════════════════
+       SLIDE 0 — COVER
+    ══════════════════════════════ */
+    #s0 {
+      background: var(--bg-dark);
+      flex-direction: column;
+      justify-content: center;
+      padding: 0 8vw;
+    }
+
+    .eyebrow {
+      font-family: 'Inconsolata', monospace;
+      font-size: 0.68rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--accent-red);
+      margin-bottom: 2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+    }
+    .eyebrow::before { content: ''; display: inline-block; width: 2rem; height: 1px; background: var(--accent-red); }
+
+    .cover-h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(3rem, 7vw, 6rem);
+      line-height: 1.05;
+      font-weight: 400;
+      margin-bottom: 0.5rem;
+    }
+    .cover-h1 em { font-style: italic; color: var(--accent-blu); }
+
+    .cover-sub {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(1rem, 2.2vw, 1.7rem);
+      font-style: italic;
+      color: var(--muted);
+      margin-bottom: 3rem;
+    }
+
+    .cover-team {
+      font-family: 'Inconsolata', monospace;
+      font-size: 0.75rem;
+      color: var(--muted);
+      line-height: 2;
+    }
+    .cover-team strong { color: var(--text); font-weight: 400; }
+
+    .cover-stats {
+      margin-top: 4rem;
+      display: flex;
+      gap: 3.5rem;
+      flex-wrap: wrap;
+    }
+
+    .cstat { border-left: 1px solid var(--rule); padding-left: 1.2rem; }
+    .cstat-n {
+      font-family: 'Playfair Display', serif;
+      font-size: 2.2rem;
+      line-height: 1;
+      margin-bottom: 0.3rem;
+    }
+    .cstat-l {
+      font-family: 'Inconsolata', monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .cover-deco {
+      position: absolute;
+      right: -1vw;
+      bottom: -6vh;
+      font-family: 'Playfair Display', serif;
+      font-size: 40vw;
+      line-height: 1;
+      color: rgba(255,255,255,0.012);
+      pointer-events: none;
+      user-select: none;
+      z-index: 0;
+    }
+
+    /* ══════════════════════════════
+       VIZ SLIDES (1–6)
+    ══════════════════════════════ */
+    .viz-slide {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 0;
+      align-items: stretch;
+    }
+
+    .viz-panel {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 1.3rem;
+      padding: 5vh 2.5rem 5vh 5vw;
+      border-right: 1px solid var(--rule);
+      position: relative;
+      z-index: 1;
+    }
+
+    /* accent bar on left */
+    .viz-panel::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 20%; bottom: 20%;
+      width: 2px;
+    }
+
+    .viz-n {
+      font-family: 'Inconsolata', monospace;
+      font-size: 0.62rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .viz-tag {
+      display: inline-block;
+      font-family: 'Inconsolata', monospace;
+      font-size: 0.58rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      padding: 0.22rem 0.65rem;
+      border-radius: 2px;
+      font-weight: 500;
+      width: fit-content;
+    }
+
+    .viz-title {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(1.3rem, 2.2vw, 2rem);
+      font-weight: 400;
+      line-height: 1.2;
+    }
+
+    .viz-desc {
+      font-size: 0.84rem;
+      color: var(--muted);
+      line-height: 1.75;
+    }
+
+    .viz-find {
+      border-left: 2px solid;
+      padding-left: 0.9rem;
+      font-family: 'Inconsolata', monospace;
+      font-size: 0.75rem;
+      line-height: 1.65;
+    }
+
+    .viz-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.65rem 1.2rem;
+      font-family: 'Inconsolata', monospace;
+      font-size: 0.68rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      text-decoration: none;
+      border: 1px solid;
+      transition: background 0.2s, color 0.2s;
+      width: fit-content;
+    }
+
+    .viz-frame {
+      position: relative;
+      background: var(--bg-card);
+      z-index: 1;
+    }
+
+    .viz-frame iframe {
+      width: 100%; height: 100%;
+      border: none;
+      display: block;
+    }
+
+    .frame-cover {
+      position: absolute;
+      inset: 0;
+      background: rgba(11,15,20,0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+      transition: opacity 0.35s;
+      cursor: pointer;
+    }
+    .frame-cover.gone { opacity: 0; pointer-events: none; }
+
+    .load-btn {
+      font-family: 'Inconsolata', monospace;
+      font-size: 0.72rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--text);
+      border: 1px solid var(--muted);
+      padding: 0.75rem 1.8rem;
+      background: transparent;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+    .load-btn:hover { border-color: var(--text); }
+
+    /* accent helpers */
+    [data-a="red"] .viz-panel::before,
+    [data-a="red"] .viz-find  { border-color: var(--accent-red); }
+    [data-a="red"] .viz-find,
+    [data-a="red"] .viz-btn   { color: var(--accent-red); }
+    [data-a="red"] .viz-tag   { background: rgba(224,90,58,.15); color: var(--accent-red); }
+    [data-a="red"] .viz-btn   { border-color: var(--accent-red); }
+    [data-a="red"] .viz-btn:hover { background: var(--accent-red); color: var(--bg-dark); }
+
+    [data-a="blu"] .viz-panel::before,
+    [data-a="blu"] .viz-find  { border-color: var(--accent-blu); }
+    [data-a="blu"] .viz-find,
+    [data-a="blu"] .viz-btn   { color: var(--accent-blu); }
+    [data-a="blu"] .viz-tag   { background: rgba(74,158,187,.15); color: var(--accent-blu); }
+    [data-a="blu"] .viz-btn   { border-color: var(--accent-blu); }
+    [data-a="blu"] .viz-btn:hover { background: var(--accent-blu); color: var(--bg-dark); }
+
+    [data-a="grn"] .viz-panel::before,
+    [data-a="grn"] .viz-find  { border-color: var(--accent-grn); }
+    [data-a="grn"] .viz-find,
+    [data-a="grn"] .viz-btn   { color: var(--accent-grn); }
+    [data-a="grn"] .viz-tag   { background: rgba(90,173,143,.15); color: var(--accent-grn); }
+    [data-a="grn"] .viz-btn   { border-color: var(--accent-grn); }
+    [data-a="grn"] .viz-btn:hover { background: var(--accent-grn); color: var(--bg-dark); }
+
+    [data-a="pur"] .viz-panel::before,
+    [data-a="pur"] .viz-find  { border-color: var(--accent-pur); }
+    [data-a="pur"] .viz-find,
+    [data-a="pur"] .viz-btn   { color: var(--accent-pur); }
+    [data-a="pur"] .viz-tag   { background: rgba(155,126,200,.15); color: var(--accent-pur); }
+    [data-a="pur"] .viz-btn   { border-color: var(--accent-pur); }
+    [data-a="pur"] .viz-btn:hover { background: var(--accent-pur); color: var(--bg-dark); }
+
+    [data-a="ora"] .viz-panel::before,
+    [data-a="ora"] .viz-find  { border-color: var(--accent-ora); }
+    [data-a="ora"] .viz-find,
+    [data-a="ora"] .viz-btn   { color: var(--accent-ora); }
+    [data-a="ora"] .viz-tag   { background: rgba(212,135,74,.15); color: var(--accent-ora); }
+    [data-a="ora"] .viz-btn   { border-color: var(--accent-ora); }
+    [data-a="ora"] .viz-btn:hover { background: var(--accent-ora); color: var(--bg-dark); }
+
+    [data-a="tea"] .viz-panel::before,
+    [data-a="tea"] .viz-find  { border-color: var(--accent-tea); }
+    [data-a="tea"] .viz-find,
+    [data-a="tea"] .viz-btn   { color: var(--accent-tea); }
+    [data-a="tea"] .viz-tag   { background: rgba(61,189,170,.15); color: var(--accent-tea); }
+    [data-a="tea"] .viz-btn   { border-color: var(--accent-tea); }
+    [data-a="tea"] .viz-btn:hover { background: var(--accent-tea); color: var(--bg-dark); }
+
+    /* ══════════════════════════════
+       SLIDE 7 — RANKINGS
+    ══════════════════════════════ */
+    #s8 {
+      background: var(--bg-mid);
+      flex-direction: column;
+      justify-content: center;
+      padding: 4vh 6vw;
+      overflow-y: auto;
+    }
+
+    .tbl-head { margin-bottom: 1rem; }
+    .tbl-head h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(1.2rem, 2.2vw, 1.8rem);
+      font-weight: 400;
+      margin-bottom: 0.2rem;
+    }
+    .tbl-head p {
+      font-family: 'Inconsolata', monospace;
+      font-size: 0.68rem;
+      color: var(--muted);
+      letter-spacing: 0.06em;
+    }
+
+    table { width: 100%; border-collapse: collapse; font-family: 'Inconsolata', monospace; font-size: 0.75rem; table-layout: fixed; }
+    table col.c-num { width: 4%; }
+    table col.c-name { width: 22%; }
+    table col.c-svi { width: 12%; }
+    table col.c-crash { width: 12%; }
+    table col.c-cf { width: 14%; }
+    table col.c-score { width: 36%; }
+    thead th {
+      text-align: left;
+      padding: 0.4rem 0.5rem 0.4rem 0;
+      font-size: 0.6rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      border-bottom: 1px solid var(--rule);
+      font-weight: 400;
+    }
+    tbody td { padding: 0.4rem 0.5rem 0.4rem 0; border-bottom: 1px solid rgba(31,45,61,.55); }
+    tbody tr:last-child td { border-bottom: none; }
+    .rn { color: var(--muted); font-size: 0.68rem; }
+    .rt { color: var(--accent-red); }
+
+    .bar-wrap { display: flex; align-items: center; gap: 0.6rem; }
+    .bar {
+      height: 5px; border-radius: 2px; flex-shrink: 0;
+      transform: scaleX(0); transform-origin: left;
+      animation: barIn 0.6s ease forwards;
+    }
+    @keyframes barIn { to { transform: scaleX(1); } }
+    .bar-v { font-size: 0.7rem; color: var(--muted); }
+
+    @media (max-width: 768px) {
+      .viz-slide { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+      .viz-panel { border-right: none; border-bottom: 1px solid var(--rule); padding: 3vh 5vw; }
+      .viz-frame { min-height: 50vh; }
+      #s0 { padding: 0 6vw; }
+      .cover-stats { gap: 2rem; }
+    }
+  </style>
+</head>
+<body>
+
+<nav id="nav-dots"></nav>
+<div id="counter">01 / 08</div>
+<div id="hint"><span>scroll</span><div class="hint-line"></div></div>
+
+<div id="slider">
+
+  <!-- SLIDE 0: COVER -->
+  <section class="slide" id="s0">
+    <div class="sc" style="position:relative;z-index:1;width:100%">
+      <div class="eyebrow">UPenn CPLN/MUSA · Practicum 2025–26</div>
+      <div class="cover-h1">Roosevelt Boulevard<br><em>Subway</em></div>
+      <div class="cover-sub">Public Health Impact Analysis</div>
+      <div class="cover-team">
+        <strong>Cathy</strong> · Sam Sen · Qianmu Zheng · Xiao Yu<br>
+        Philadelphia, PA &nbsp;·&nbsp; 12 Station Areas
+      </div>
+      <div class="cover-stats">
+        <div class="cstat"><div class="cstat-n">12</div><div class="cstat-l">Station Areas</div></div>
+        <div class="cstat"><div class="cstat-n">0.827</div><div class="cstat-l">Mean SVI</div></div>
+        <div class="cstat"><div class="cstat-n">6.2</div><div class="cstat-l">Avg Crashes</div></div>
+        <div class="cstat"><div class="cstat-n">95.8</div><div class="cstat-l">Top Score</div></div>
+      </div>
+    </div>
+    <div class="cover-deco">R</div>
+  </section>
+
+  <!-- SLIDE 1: SVI -->
+  <section class="slide viz-slide" id="s1" data-a="blu">
+    <div class="viz-panel sc">
+      <div class="viz-n">01 / 06</div>
+      <span class="viz-tag">Map</span>
+      <div class="viz-title">Social Vulnerability Index</div>
+      <div class="viz-desc">CDC SVI scores by census tract. Higher values indicate greater social vulnerability — communities with fewer resources to cope with hazards. Broad-Erie (43.9%) and North 9th (37.3%) also have the highest car-free household rates, making them entirely transit-dependent.</div>
+      <div class="viz-find">10 of 12 stations serve communities with SVI &gt; 0.75. Subway access matters most where vulnerability and transit dependency are highest.</div>
+      <a class="viz-btn" href="html/1_svi_map.html" target="_blank">Open full map →</a>
+    </div>
+    <div class="viz-frame">
+      <div class="frame-cover" onclick="loadFrame(this,'html/1_svi_map.html')">
+        <button class="load-btn">Load Interactive Map</button>
+      </div>
+      <iframe title="SVI Map"></iframe>
+    </div>
+  </section>
+
+  <!-- SLIDE 2: CRASH -->
+  <section class="slide viz-slide" id="s2" data-a="red">
+    <div class="viz-panel sc">
+      <div class="viz-n">02 / 06</div>
+      <span class="viz-tag">Map</span>
+      <div class="viz-title">Crash Hotspot Analysis</div>
+      <div class="viz-desc">Pedestrian and cyclist crashes within station walksheds. Identifies high-risk intersections where subway access could reduce road exposure.</div>
+      <div class="viz-find">Bustleton records 18 crashes — nearly 3× the corridor mean of 6.2, the most acute safety concern.</div>
+      <a class="viz-btn" href="html/2_crash_map.html" target="_blank">Open full map →</a>
+    </div>
+    <div class="viz-frame">
+      <div class="frame-cover" onclick="loadFrame(this,'html/2_crash_map.html')">
+        <button class="load-btn">Load Interactive Map</button>
+      </div>
+      <iframe title="Crash Map"></iframe>
+    </div>
+  </section>
+
+  <!-- SLIDE 3: HEALTHCARE -->
+  <section class="slide viz-slide" id="s3" data-a="red">
+    <div class="viz-panel sc">
+      <div class="viz-n">07 / 07</div>
+      <span class="viz-tag">Map</span>
+      <div class="viz-title">Healthcare Access Gap</div>
+      <div class="viz-desc">Healthcare facility access combined with social vulnerability — identifying stations where vulnerable populations have the fewest medical resources within walking distance.</div>
+      <div class="viz-find">All 12 stations score Critical — the entire corridor lacks walkable healthcare, making subway access to medical facilities a major public health benefit.</div>
+      <a class="viz-btn" href="html/7_healthcare_map.html" target="_blank">Open full map →</a>
+    </div>
+    <div class="viz-frame">
+      <div class="frame-cover" onclick="loadFrame(this,'html/7_healthcare_map.html')">
+        <button class="load-btn">Load Interactive Map</button>
+      </div>
+      <iframe title="Healthcare Access Map"></iframe>
+    </div>
+  </section>
+
+  <!-- SLIDE 4: COMPOSITE -->
+  <section class="slide viz-slide" id="s4" data-a="tea">
+    <div class="viz-panel sc">
+      <div class="viz-n">06 / 06</div>
+      <span class="viz-tag">Map</span>
+      <div class="viz-title">Composite Priority Score</div>
+      <div class="viz-desc">Combined equity-priority score integrating all three indicators — SVI (40%) + Crash Safety (35%) + Healthcare Access Deficit (25%) — identifying where subway investment yields the greatest public health benefit.</div>
+      <div class="viz-find">Bustleton scores 96.6 — top priority across all three dimensions: high SVI, most crashes, zero healthcare facilities in walkshed.</div>
+      <a class="viz-btn" href="html/6_composite_map.html" target="_blank">Open full map →</a>
+    </div>
+    <div class="viz-frame">
+      <div class="frame-cover" onclick="loadFrame(this,'html/6_composite_map.html')">
+        <button class="load-btn">Load Interactive Map</button>
+      </div>
+      <iframe title="Composite Map"></iframe>
+    </div>
+  </section>
+
+  <!-- SLIDE 5: RANKINGS -->
+  <section class="slide" id="s5">
+    <div class="sc" style="width:100%">
+      <div class="tbl-head">
+        <h2>Station Priority Rankings</h2>
+        <p>Composite score = SVI × 50 + (crashes / 18) × 50 &nbsp;·&nbsp; 12 station areas along the Roosevelt Boulevard corridor</p>
+      </div>
+      <table>
+        <colgroup><col class="c-num"><col class="c-name"><col class="c-svi"><col class="c-crash"><col class="c-cf"><col class="c-score"></colgroup>
+        <thead>
+          <tr>
+            <th>#</th><th>Station</th><th>SVI</th><th>Crashes</th><th>Car-Free HH%</th><th>Score</th>
+          </tr>
+        </thead>
+        <tbody id="tb"></tbody>
+      </table>
+    </div>
+  </section>
+
+</div><!-- /slider -->
+
+<script>
+  const slides  = [...document.querySelectorAll('.slide')];
+  const dotsEl  = document.getElementById('nav-dots');
+  const countEl = document.getElementById('counter');
+  const hintEl  = document.getElementById('hint');
+  const slider  = document.getElementById('slider');
+  let cur = 0;
+
+  // Build dots
+  slides.forEach((_, i) => {
+    const b = document.createElement('button');
+    b.className = 'dot' + (i === 0 ? ' active' : '');
+    b.addEventListener('click', () => slides[i].scrollIntoView({ behavior: 'smooth' }));
+    dotsEl.appendChild(b);
+  });
+
+  // Observer
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (!e.isIntersecting) return;
+      const i = slides.indexOf(e.target);
+      cur = i;
+      document.querySelectorAll('.dot').forEach((d, j) => d.classList.toggle('active', j === i));
+  countEl.textContent = String(i+1).padStart(2,'0') + ' / ' + String(slides.length).padStart(2,'0');
+      e.target.classList.add('visible');
+      if (i > 0) hintEl.classList.add('gone');
+    });
+  }, { threshold: 0.55 });
+
+  slides.forEach(s => obs.observe(s));
+
+  // Keyboard nav
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowRight') slides[Math.min(cur+1, slides.length-1)].scrollIntoView({ behavior: 'smooth' });
+    if (e.key === 'ArrowUp'   || e.key === 'ArrowLeft')  slides[Math.max(cur-1, 0)].scrollIntoView({ behavior: 'smooth' });
+  });
+
+  // iframe loader
+  function loadFrame(overlay, src) {
+    const iframe = overlay.parentElement.querySelector('iframe');
+    iframe.src = src;
+    overlay.classList.add('gone');
+  }
+
+  // Rankings table
+  const data = [
+    {n:"Bustleton",   svi:0.916, c:18, cf:"18.0%", s:95.8},
+    {n:"Rising Sun",  svi:0.924, c:9,  cf:"17.9%", s:71.2},
+    {n:"Cottman",     svi:0.746, c:12, cf:"15.4%", s:70.6},
+    {n:"Broad-Erie",  svi:0.975, c:7,  cf:"43.9%", s:68.2},
+    {n:"North 9th",   svi:0.953, c:7,  cf:"37.3%", s:67.0},
+    {n:"Welsh-Grant", svi:0.836, c:8,  cf:"9.8%",  s:64.0},
+    {n:"Adams",       svi:0.909, c:5,  cf:"19.9%", s:59.3},
+    {n:"Pratt",       svi:0.898, c:4,  cf:"17.2%", s:56.0},
+    {n:"Rhawn",       svi:0.726, c:4,  cf:"12.3%", s:47.4},
+    {n:"Red Lion",    svi:0.870, c:0,  cf:"10.4%", s:43.5},
+    {n:"Southampton", svi:0.751, c:1,  cf:"6.8%",  s:40.4},
+    {n:"Old Lincoln", svi:0.416, c:0,  cf:"1.6%",  s:20.8},
+  ];
+  const colors = ['#e05a3a','#4a9ebb','#5aad8f','#9b7ec8','#d4874a','#3dbdaa','#e05a3a','#4a9ebb','#5aad8f','#9b7ec8','#d4874a','#3dbdaa'];
+  const tb = document.getElementById('tb');
+  data.forEach((d,i) => {
+    const w = Math.round(d.s / 95.8 * 180);
+    tb.innerHTML += `<tr>
+      <td class="rn">${String(i+1).padStart(2,'0')}</td>
+      <td class="${i<3?'rt':''}">${d.n}</td>
+      <td>${d.svi.toFixed(3)}</td>
+      <td>${d.c}</td>
+      <td>${d.cf}</td>
+      <td><div class="bar-wrap"><div class="bar" style="width:${w}px;background:${colors[i]};animation-delay:${i*0.06}s"></div><span class="bar-v">${d.s}</span></div></td>
+    </tr>`;
+  });
+</script>
+</body>
+</html>
